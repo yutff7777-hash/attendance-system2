@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<title>ระบบเช็คชื่อออนไลน์ | โรงเรียนเสาไห้วิมลวิทยานุกูล</title>
+
+<style>
+body{
+  margin:0;
+  font-family:"Sarabun","TH Sarabun New",Tahoma,sans-serif;
+  background:#ECEFF1;
+  color:#263238;
+}
+.app{
+  max-width:900px;
+  margin:30px auto;
+  background:#FFFFFF;
+  border-radius:16px;
+  box-shadow:0 10px 30px rgba(0,0,0,.25);
+  overflow:hidden;
+}
+.appbar{
+  background:#1B5E20;
+  color:#FFFFFF;
+  padding:18px;
+  font-size:22px;
+  font-weight:600;
+  text-align:center;
+}
+.content{padding:26px}
+h3{
+  margin-top:0;
+  color:#1B5E20;
+  text-align:center;
+}
+input,select{
+  width:100%;
+  padding:12px;
+  margin-top:10px;
+  font-size:16px;
+  border-radius:8px;
+  border:1px solid #B0BEC5;
+}
+button{
+  padding:12px;
+  margin-top:14px;
+  font-size:16px;
+  border-radius:8px;
+  border:none;
+  background:#1B5E20;
+  color:#fff;
+  cursor:pointer;
+}
+button:hover{background:#2E7D32}
+.secondary{
+  background:#FBC02D;
+  color:#212121;
+}
+.hidden{display:none}
+#loginError{
+  color:#C62828;
+  text-align:center;
+  margin-top:10px;
+}
+
+/* TABLE */
+table{
+  width:100%;
+  border-collapse:collapse;
+  margin-top:18px;
+}
+th,td{
+  border:1px solid #CFD8DC;
+  padding:10px;
+  text-align:center;
+}
+th{
+  background:#E8F5E9;
+  color:#1B5E20;
+}
+
+/* STATUS */
+.status-btn{
+  padding:6px 12px;
+  border-radius:6px;
+  border:none;
+  cursor:pointer;
+  margin:2px;
+}
+.present{background:#2E7D32;color:#fff}
+.late{background:#F9A825;color:#212121}
+.absent{background:#C62828;color:#fff}
+</style>
+</head>
+
+<body>
+<div class="app">
+
+<div class="appbar">ระบบเช็คชื่อออนไลน์ </div>
+
+<!-- LOGIN -->
+<div class="content" id="loginPage">
+<h3>เข้าสู่ระบบ</h3>
+
+<input
+  type="text"
+  id="username"
+  name="username"
+  placeholder="ชื่อผู้ใช้ (teacher / director / admin)"
+  autocomplete="username"
+>
+
+<input
+  type="password"
+  id="password"
+  name="password"
+  placeholder="รหัสผ่าน"
+  autocomplete="current-password"
+>
+
+<button onclick="login()">เข้าสู่ระบบ</button>
+<div id="loginError"></div>
+</div>
+
+<!-- TEACHER -->
+<div class="content hidden" id="teacherPage">
+<h3>ครูผู้สอน</h3>
+
+<select id="room">
+<option>ม.1/1</option>
+<option>ม.1/2</option>
+<option>ม.6/6</option>
+</select>
+
+<table>
+<thead>
+<tr>
+<th>ลำดับ</th>
+<th>ชื่อ-นามสกุล</th>
+<th>สถานะ</th>
+</tr>
+</thead>
+<tbody id="studentTable"></tbody>
+</table>
+
+<button onclick="saveAttendance()">บันทึกการเช็คชื่อ</button>
+<button class="secondary" onclick="logout()">ออกจากระบบ</button>
+</div>
+
+<!-- DIRECTOR -->
+<div class="content hidden" id="directorPage">
+<h3>ผู้อำนวยการ</h3>
+<p>ตรวจสอบข้อมูลจาก Google Sheet</p>
+<button class="secondary" onclick="logout()">ออกจากระบบ</button>
+</div>
+
+<!-- ADMIN -->
+<div class="content hidden" id="adminPage">
+<h3>ผู้ดูแลระบบ</h3>
+<p>สถานะระบบ: พร้อมใช้งาน</p>
+<button class="secondary" onclick="logout()">ออกจากระบบ</button>
+</div>
+
+</div>
+
+<script>
+/* USERS */
+const users=[
+{user:"teacher",pass:"1234",role:"teacher"},
+{user:"director",pass:"1234",role:"director"},
+{user:"admin",pass:"1234",role:"admin"}
+];
+
+/* STUDENTS */
+const students=[
+"ด.ช.สมชาย ใจดี",
+"ด.ญ.สมหญิง ตั้งใจ",
+"นายกิตติ พัฒนา"
+];
+
+/* GOOGLE SCRIPT URL */
+const SCRIPT_URL= "https://script.google.com/macros/s/AKfycbxsIkJrCbsYcPyMzm3m_ouGeieyIbchSgFblzB8rIO_Fxg8jVyG9AcUUXDbwqZPCWcP/exec";
+
+/* LOGIN */
+function login(){
+let u=document.getElementById("username").value.trim();
+let p=document.getElementById("password").value.trim();
+let found=users.find(x=>x.user===u && x.pass===p);
+if(!found){
+loginError.innerText="ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง";
+return;
+}
+sessionStorage.setItem("role",found.role);
+openRole(found.role);
+}
+
+/* OPEN ROLE */
+function openRole(role){
+loginPage.classList.add("hidden");
+["teacher","director","admin"].forEach(r=>{
+document.getElementById(r+"Page").classList.add("hidden");
+});
+document.getElementById(role+"Page").classList.remove("hidden");
+if(role==="teacher") loadStudents();
+}
+
+/* LOAD STUDENTS */
+function loadStudents(){
+studentTable.innerHTML="";
+students.forEach((name,i)=>{
+studentTable.innerHTML+=`
+<tr>
+<td>${i+1}</td>
+<td>${name}</td>
+<td>
+<button class="status-btn present" onclick="setStatus(this,'มา')">มา</button>
+<button class="status-btn late" onclick="setStatus(this,'สาย')">สาย</button>
+<button class="status-btn absent" onclick="setStatus(this,'ขาด')">ขาด</button>
+</td>
+</tr>`;
+});
+}
+
+/* SET STATUS */
+function setStatus(btn,status){
+btn.parentElement.setAttribute("data-status",status);
+}
+
+/* SAVE TO GOOGLE SHEET */
+function saveAttendance(){
+const roomVal=room.value;
+const teacher=sessionStorage.getItem("role")||"teacher";
+
+document.querySelectorAll("#studentTable tr").forEach(row=>{
+fetch(SCRIPT_URL,{
+method:"POST",
+body:JSON.stringify({
+room:roomVal,
+name:row.children[1].innerText,
+status:row.children[2].getAttribute("data-status")||"ไม่ระบุ",
+teacher:teacher
+})
+});
+});
+alert("บันทึกข้อมูลขึ้นระบบเรียบร้อย (Google Sheet)");
+}
+
+/* LOGOUT */
+function logout(){
+sessionStorage.clear();
+location.reload();
+}
+</script>
+
+</body>
+</html>
